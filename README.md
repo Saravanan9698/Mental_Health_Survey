@@ -25,7 +25,29 @@ An AI-powered web application that predicts the likelihood of depression based o
 
 ## 🧱 Project Structure
 
-📦 Mental Health Prediction ┃ ┣ 📂 Model ┃ ┣ 📜 neural_network.keras # Trained TensorFlow model ┃ ┣ 📜 preprocessor.pkl # Preprocessing pipeline ┃ ┣ 📜 cleaning.pkl # Data cleaning logic ┃ ┣ 📂 Data ┃ ┣ 📜 train.csv # Raw training dataset ┃ ┣ 📜 test.csv # Raw test dataset ┃ ┣ 📜 sample_submission.csv # Sample survey dataset ┃ ┣ 📂 Dataset ┃ ┣ 📜 cleaned_data.csv # Cleaned version of raw dataset ┃ ┣ 📜 preprocessor_data.csv # Preprocessed version of dataset ┃ ┣ 📂 Scripts ┃ ┣ 📜 data_understanding.ipynb # Dataset characteristics analysis ┃ ┣ 📜 data_processing.ipynb # Data preparation for modeling ┃ ┣ 📜 EDA.ipynb # Exploratory data analysis and visualizations ┃ ┣ 📜 model_building.ipynb # Model training and evaluation ┃ ┣ 📜 Streamlit.py # Streamlit web application ┣ 📜 requirements.txt # Python dependencies ┣ 📜 README.md # Project documentation
+📦 Mental Health Prediction
+┃ 
+┣ 📂 Model 
+┃ ┣ 📜 neural_network.keras **->** Trained TensorFlow model 
+┃ ┣ 📜 preprocessor.pkl **->** Preprocessing pipeline 
+┃ ┣ 📜 cleaning.pkl **->** Data cleaning logic 
+┃
+┃ ┣ 📂 Data 
+┃ ┣ 📜 train.csv **->** Raw training dataset 
+┃ ┣ 📜 test.csv **->** Raw test dataset
+┃ ┣ 📜 sample_submission.csv **->** Sample survey dataset 
+┃
+┃ ┣ 📂 Dataset 
+┃ ┣ 📜 cleaned_data.csv **->** Cleaned version of raw dataset
+┃ ┣ 📜 preprocessor_data.csv **->** Preprocessed version of dataset
+┃ ┣ 📂 Scripts
+┃ ┣ 📜 data_understanding.ipynb **->** Dataset characteristics analysis 
+┃ ┣ 📜 data_processing.ipynb **->** Data preparation for modeling
+┃ ┣ 📜 EDA.ipynb **->** Exploratory data analysis and visualizations
+┃ ┣ 📜 model_building.ipynb **->** Model training and evaluation
+┣ 📜 Streamlit.py **->** Streamlit web application 
+┣ 📜 requirements.txt **->** Python dependencies 
+┣ 📜 README.md **->** Project documentation
 
 
 ---
