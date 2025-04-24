@@ -1,46 +1,81 @@
-# Mental_Health_Survey
+# 🧠 Mental Health Prediction
 
-Mental Health Prediction
-An AI-powered web application that predicts the likelihood of depression based on survey responses.
-Features
-Upload Data – Upload survey data in CSV format for analysis and prediction.
-Manual Entry – Manually input survey responses and get depression risk predictions.
-Preprocessing & Cleaning – Automatically cleans and preprocesses data.
-AI-Powered Predictions – Uses a Neural Network model to predict depression risk.
-Data Visualizations – Generates insights with correlation heatmaps and depression distribution charts.
-Project Structure
-📦 Mental Health Prediction
-┃
-┣ 📂 Model
-┃ ┣ 📜 neural_network.keras -> Trained TensorFlow Model
-┃ ┣ 📜 preprocessor.pkl -> Preprocessing pipeline
-┃ ┣ 📜 cleaning.pkl -> Data cleaning logic
-┃
-┣ 📂 Data
-┃ ┣ 📜 train.csv -> Train dataset
-┃ ┣ 📜 test.csv -> Test dataset
-┃ ┣ 📜 sample_submission.csv -> Sample Survey dataset
-┃
-┣ 📂 Dataset
-┃ ┣ 📜 cleaned_data.csv -> Cleaned Dataset
-┃ ┣ 📜 preprocessor_data.csv -> Preprocessed Dataset
-┃
-┣ 📂 Scripts
-┃ ┣ 📜 data_understanding.ipynb -> Helps in Finding and Understanding Dataset's Characteristic
-┃ ┣ 📜 data_processing.ipynb -> Prepares Data for Model Building and Prediction
-┃ ┣ 📜 EDA.ipynb -> Visualizes data for the understanding
-┃ ┣ 📜 model_building.ipynb -> Builds Neural Networks Model and Prepares for the Prediction
-┃
-┣ 📜 Streamlit.py -> Streamlit Application
-┣ 📜 requirements.txt -> Python dependencies
-┣ 📜 README.md -> Documentation
+An AI-powered web application that predicts the likelihood of depression based on mental health survey responses. The app provides real-time predictions, data preprocessing, and insightful visualizations to assist healthcare professionals and individuals in understanding mental health risks.
 
-Visualizations & Insights
-Correlation Heatmaps – Find relationships between features.
-Depression Distribution – See how depression cases are distributed.
-Real-time Predictions – Get instant results for manual data entry.
-Technologies Used
-Streamlit – Web application framework
-TensorFlow/Keras – Neural Network for predictions
-Pandas & NumPy – Data processing and transformations
-Matplotlib & Seaborn – Visualizations
+---
+
+## 🚀 Features
+
+- **📁 Upload Data**  
+  Upload survey data in CSV format for batch analysis and depression prediction.
+
+- **📝 Manual Entry**  
+  Input individual responses manually to receive real-time depression risk predictions.
+
+- **🧹 Preprocessing & Cleaning**  
+  Automatically cleans and preprocesses data using predefined pipelines.
+
+- **🤖 AI-Powered Predictions**  
+  Utilizes a Neural Network built with TensorFlow/Keras for accurate depression risk prediction.
+
+- **📊 Data Visualizations**  
+  Generates interactive plots like correlation heatmaps and depression distribution charts.
+
+---
+
+## 🧱 Project Structure
+
+📦 Mental Health Prediction ┃ ┣ 📂 Model ┃ ┣ 📜 neural_network.keras # Trained TensorFlow model ┃ ┣ 📜 preprocessor.pkl # Preprocessing pipeline ┃ ┣ 📜 cleaning.pkl # Data cleaning logic ┃ ┣ 📂 Data ┃ ┣ 📜 train.csv # Raw training dataset ┃ ┣ 📜 test.csv # Raw test dataset ┃ ┣ 📜 sample_submission.csv # Sample survey dataset ┃ ┣ 📂 Dataset ┃ ┣ 📜 cleaned_data.csv # Cleaned version of raw dataset ┃ ┣ 📜 preprocessor_data.csv # Preprocessed version of dataset ┃ ┣ 📂 Scripts ┃ ┣ 📜 data_understanding.ipynb # Dataset characteristics analysis ┃ ┣ 📜 data_processing.ipynb # Data preparation for modeling ┃ ┣ 📜 EDA.ipynb # Exploratory data analysis and visualizations ┃ ┣ 📜 model_building.ipynb # Model training and evaluation ┃ ┣ 📜 Streamlit.py # Streamlit web application ┣ 📜 requirements.txt # Python dependencies ┣ 📜 README.md # Project documentation
+
+
+---
+
+## 📈 Visualizations & Insights
+
+- **🧬 Correlation Heatmaps**  
+  Understand the relationships between features and depression indicators.
+
+- **📉 Depression Distribution**  
+  Visual representation of how depression cases are spread across the dataset.
+
+- **⚡ Real-time Predictions**  
+  Instant results when users manually input their responses.
+
+---
+
+## 🛠️ Technologies Used
+
+- [Streamlit](https://streamlit.io/) – For building the interactive web application.
+- [TensorFlow/Keras](https://www.tensorflow.org/) – Neural Network framework for predictions.
+- [Pandas](https://pandas.pydata.org/) & [NumPy](https://numpy.org/) – Data manipulation and transformation.
+- [Matplotlib](https://matplotlib.org/) & [Seaborn](https://seaborn.pydata.org/) – Data visualization libraries.
+
+---
+
+## ▶️ How to Run
+
+1. Clone the repository:
+    ```bash
+    git clone https://github.com/yourusername/mental-health-prediction.git
+    cd mental-health-prediction
+    ```
+
+2. Install dependencies:
+    ```bash
+    pip install -r requirements.txt
+    ```
+
+3. Run the Streamlit app:
+    ```bash
+    streamlit run Streamlit.py
+    ```
+
+---
+
+## 🙌 Acknowledgments
+
+This project aims to support mental health awareness by leveraging AI tools for early detection and intervention.
+
+---
+
+
