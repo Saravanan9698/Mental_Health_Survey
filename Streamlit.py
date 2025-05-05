@@ -1,3 +1,5 @@
+# Optimized Streamlit App for Mental Health Depression Prediction
+
 import base64
 import pickle
 import numpy as np
@@ -6,38 +8,36 @@ import seaborn as sns
 import streamlit as st
 import tensorflow as tf
 import matplotlib.pyplot as plt
+import warnings
 from sklearn.preprocessing import LabelEncoder
+
+warnings.filterwarnings("ignore")
 
 # Set Streamlit page config
 st.set_page_config(page_title="Mental Health Depression Prediction", layout="wide")
 
 def img_to_base64(image_path):
-    with open(image_path, "rb") as img_file:
-        return base64.b64encode(img_file.read()).decode()
+    try:
+        with open(image_path, "rb") as img_file:
+            return base64.b64encode(img_file.read()).decode()
+    except FileNotFoundError:
+        return None
 
-# Apply background image
-image_path = r"D:\\Projects\\Mini_Projects\\Mental_Health_Survey\\Image\\Neural_Networks.jpg"
-try:
-    img_base64 = img_to_base64(image_path)
+# Background image setup
+image_path = "D:/Projects/Mini_Projects/Mental_Health_Survey/Image/Neural_Networks.jpg"
+img_base64 = img_to_base64(image_path)
+if img_base64:
     st.markdown(f"""
         <style>
         .stApp {{
-            background-image: linear-gradient(rgba(0, 0, 0, 0.7), rgba(0, 0, 0, 0.7)), url('data:image/jpeg;base64,{img_base64}');
+            background-image: linear-gradient(rgba(0, 0, 0, 0.7), rgba(0, 0, 0, 0.7)),
+            url('data:image/jpeg;base64,{img_base64}');
             background-size: cover;
             background-position: center;
             background-repeat: no-repeat;
-            padding: 0;
-        }}
-        .title-container {{
-            text-align: center;
-            color: white;
-            font-size: 4em;
-            margin-top: 350px;
         }}
         </style>
     """, unsafe_allow_html=True)
-except FileNotFoundError:
-    st.error("Image not found at the specified path.")
 
 class MentalHealthPreprocessor:
     def __init__(self):
@@ -61,15 +61,7 @@ class MentalHealthPreprocessor:
                 le = LabelEncoder()
                 data[col] = le.fit_transform(data[col].astype(str))
                 self.encoders[col] = le
-
         return data
-
-    def ensure_all_features(self, data):
-        for col in self.numerical_features:
-            data[col] = data.get(col, 0)
-        for col in self.categorical_features:
-            data[col] = data.get(col, 0)
-        return data[self.numerical_features + [col for col in self.categorical_features if col in self.encoders]]
 
     def transform(self, data):
         data = data.drop(columns=self.columns_to_drop, errors="ignore")
@@ -79,7 +71,13 @@ class MentalHealthPreprocessor:
                     data[col] = self.encoders[col].transform(data[col].astype(str))
                 except ValueError:
                     data[col] = 0
-        return self.ensure_all_features(data)
+        for col in self.numerical_features:
+            if col not in data.columns:
+                data[col] = 0
+        for col in self.categorical_features:
+            if col not in data.columns and col in self.encoders:
+                data[col] = 0
+        return data[self.numerical_features + [col for col in self.categorical_features if col in self.encoders]]
 
 @st.cache_resource
 def load_pickle(path, default=None):
@@ -92,15 +90,11 @@ def load_pickle(path, default=None):
 
 @st.cache_resource
 def load_model():
-    try:
-        return tf.keras.models.load_model(r"D:\\Projects\\Mini_Projects\\Mental_Health_Survey\\Model\\neural_network.keras")
-    except Exception as e:
-        st.error(f"Error loading model: {str(e)}")
-        return None
+    return tf.keras.models.load_model("D:/Projects/Mini_Projects/Mental_Health_Survey/Model/neural_network.keras")
 
 @st.cache_resource
 def load_cleaning():
-    return load_pickle(r"D:\\Projects\\Mini_Projects\\Mental_Health_Survey\\Model\\cleaning.pkl", pd.DataFrame())
+    return load_pickle("D:/Projects/Mini_Projects/Mental_Health_Survey/Model/cleaning.pkl", pd.DataFrame())
 
 def predict_depression(input_data, model, preprocessor):
     try:
@@ -114,15 +108,15 @@ def predict_depression(input_data, model, preprocessor):
         st.error(f"Prediction error: {str(e)}")
         return "Error", 0.0
 
-# Sidebar and page routing
-st.title("Mental Health Depression Prediction Application")
+# Sidebar navigation
 st.sidebar.header("Navigation")
-page = st.sidebar.radio("Select Page", ["Home", "Upload Data", "Manual Entry", "Visualizations", "Bias_Evaluation"])
+page = st.sidebar.radio("Select Page", ["Home", "Upload Data", "Manual Entry", "Visualizations", "Bias Evaluation"])
 
 if "predicted_data" not in st.session_state:
     st.session_state.predicted_data = pd.DataFrame()
 
 if page == "Home":
+    st.title("Mental Health Depression Prediction Application")
     st.subheader("Understanding Depression")
     st.markdown("""
         Depression is a serious mental health disorder that affects mood, thought, and behavior.
@@ -131,7 +125,7 @@ if page == "Home":
     """)
 
 elif page == "Upload Data":
-    st.header("Upload Survey CSV")
+    st.title("Upload Survey CSV")
     file = st.file_uploader("Upload CSV", type="csv")
     if file:
         df = pd.read_csv(file)
@@ -139,9 +133,9 @@ elif page == "Upload Data":
 
         cleaned = load_cleaning()
         preprocessor = MentalHealthPreprocessor()
+        preprocessor.fit(cleaned.copy())
         model = load_model()
 
-        preprocessor.fit(cleaned.copy())
         processed = preprocessor.transform(df.copy())
         processed = np.pad(processed, ((0, 0), (0, max(0, 13 - processed.shape[1]))), mode='constant')
         processed = processed[:, :13]
@@ -159,8 +153,7 @@ elif page == "Upload Data":
             st.download_button("Download Results", data=csv, file_name="depression_predictions.csv")
 
 elif page == "Manual Entry":
-    st.header("Manual Survey Input")
-
+    st.title("Manual Survey Input")
     input_data = {
         "Gender": st.selectbox("Gender", ["Male", "Female"]),
         "Age": st.slider("Age", 18, 80),
@@ -190,84 +183,54 @@ elif page == "Manual Entry":
 
     if st.button("Predict"):
         model = load_model()
-        preprocessor = MentalHealthPreprocessor()
         cleaned = load_cleaning()
+        preprocessor = MentalHealthPreprocessor()
         preprocessor.fit(cleaned.copy())
         pred, conf = predict_depression(input_data, model, preprocessor)
         st.success(f"Prediction: {pred}")
         st.info(f"Confidence Score: {conf:.2f}")
 
 elif page == "Visualizations":
-    st.header("Data Insights & Visualizations")
-    preprocessor = MentalHealthPreprocessor()
-    model = load_model()
-    cleaned_data = load_cleaning()
-
-    preprocessor.fit(cleaned_data.copy())
-    preprocessed_data = preprocessor.transform(cleaned_data.copy())
-
-    if preprocessed_data.shape[1] > 13:
-        preprocessed_data = preprocessed_data.iloc[:, :13]
-
-    if not st.session_state["predicted_data"].empty:
-        st.write("#### Predicted Data Overview")
-        st.dataframe(st.session_state["predicted_data"].head())
-
-        numeric_data = st.session_state["predicted_data"].select_dtypes(include=[np.number])
+    st.title("Data Insights & Visualizations")
+    if not st.session_state.predicted_data.empty:
+        df = st.session_state.predicted_data.copy()
+        st.write("### Predicted Data", df.head())
+        numeric_data = df.select_dtypes(include=[np.number])
 
         if not numeric_data.empty:
-            st.write("#### Correlation Heatmap (Predicted Data)")
-            fig, ax = plt.subplots(figsize=(10, 6))
+            fig, ax = plt.subplots(figsize=(14, 6))
             sns.heatmap(numeric_data.corr(), annot=True, cmap="coolwarm", ax=ax)
             st.pyplot(fig)
 
-        st.write("#### Depression Distribution in Predictions")
-        fig2, ax2 = plt.subplots()
-        sns.countplot(x="Prediction", data=st.session_state["predicted_data"], ax=ax2)
-        st.pyplot(fig2)
+            fig2, ax2 = plt.subplots()
+            sns.countplot(x="Prediction", data=df, ax=ax2)
+            st.pyplot(fig2)
     else:
-        st.warning("No predicted data available. Please run predictions in the Upload Data section first.")
+        st.warning("Please upload data and generate predictions to view visualizations.")
 
-elif page == "Bias_Evaluation":
-    st.header("Bias Evaluation for Prediction Distribution")
-    if "predicted_data" in st.session_state and not st.session_state["predicted_data"].empty:
-        data = st.session_state["predicted_data"].copy()
-    else:
-        st.warning("No predicted data available. Please run predictions in the Upload Data section first.")
+elif page == "Bias Evaluation":
+    st.title("Bias Evaluation")
+    df = st.session_state.predicted_data.copy()
+    if df.empty:
+        st.warning("Please upload data and generate predictions first.")
         st.stop()
 
-    if "Gender" in data.columns and "Prediction" in data.columns:
-        st.write("#### Gender Distribution in Predictions")
-        fig, ax = plt.subplots(figsize=(10, 6))
-        sns.countplot(x="Gender", hue="Prediction", data=data, ax=ax)
-        st.pyplot(fig)
-
-        gender_stats = data.groupby("Gender")["Prediction"].mean().reset_index()
-        gender_stats.columns = ["Gender", "Depression Prediction Rate"]
-        fig2, ax2 = plt.subplots(figsize=(8, 5))
-        sns.barplot(x="Gender", y="Depression Prediction Rate", data=gender_stats, ax=ax2)
-        plt.ylim(0, 1)
-        st.pyplot(fig2)
-        st.dataframe(gender_stats)
-
-    if "Age" in data.columns and "Prediction" in data.columns:
-        st.write("#### Age Distribution in Predictions")
-        data["Age Group"] = pd.cut(data["Age"], bins=[17, 25, 35, 45, 55, 85], labels=["18-25", "26-35", "36-45", "46-55", "56+"])
-        fig3, ax3 = plt.subplots(figsize=(10, 6))
-        sns.countplot(x="Age Group", hue="Prediction", data=data, ax=ax3)
-        st.pyplot(fig3)
-
-        age_stats = data.groupby("Age Group")["Prediction"].mean().reset_index()
-        age_stats.columns = ["Age Group", "Depression Prediction Rate"]
-        fig4, ax4 = plt.subplots(figsize=(10, 5))
-        sns.barplot(x="Age Group", y="Depression Prediction Rate", data=age_stats, ax=ax4)
-        plt.ylim(0, 1)
-        st.pyplot(fig4)
-        st.dataframe(age_stats)
-
-    for factor in ["City", "Sleep Duration", "Dietary Habits", "Work/Study Hours"]:
-        if factor in data.columns and "Prediction" in data.columns:
-            st.write(f"#### {factor} Distribution in Predictions")
-            fig, ax = plt.subplots(figsize=(10, 6))
-            sns.countplot(x=factor, hue="Prediction", data=data, ax=ax)
+    group_factors = ["Gender", "Age", "City", "Sleep Duration", "Dietary Habits", "Work/Study Hours"]
+    for factor in group_factors:
+        if factor in df.columns:
+            st.write(f"### {factor} vs Prediction")
+            fig, ax = plt.subplots(figsize=(14, 6))
+            sns.countplot(x=factor, hue="Prediction", data=df, ax=ax)
             st.pyplot(fig)
+
+            if df[factor].dtype != 'object':
+                bins = pd.cut(df[factor], bins=5)
+                grouped = df.groupby(bins)["Prediction"].mean().reset_index()
+            else:
+                grouped = df.groupby(factor)["Prediction"].mean().reset_index()
+            grouped.columns = [factor, "Depression Prediction Rate"]
+            fig2, ax2 = plt.subplots(figsize=(14, 6))
+            sns.barplot(x=factor, y="Depression Prediction Rate", data=grouped, ax=ax2)
+            plt.ylim(0, 1)
+            st.pyplot(fig2)
+            st.dataframe(grouped)
