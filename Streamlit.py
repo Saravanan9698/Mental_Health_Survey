@@ -1,5 +1,8 @@
 # Optimized Streamlit App for Mental Health Depression Prediction
 
+
+# Import necessary libraries
+import os
 import base64
 import pickle
 import numpy as np
@@ -10,10 +13,18 @@ import tensorflow as tf
 import matplotlib.pyplot as plt
 import warnings
 from sklearn.preprocessing import LabelEncoder, StandardScaler
-from sklearn.metrics import confusion_matrix, precision_score, recall_score, f1_score
+from sklearn.metrics import confusion_matrix, precision_score, recall_score, f1_score, roc_auc_score, roc_curve, classification_report
+from sklearn.ensemble import RandomForestClassifier
+from sklearn.model_selection import cross_val_score
 from imblearn.over_sampling import SMOTE
+from tensorflow.keras.models import Sequential
+from tensorflow.keras.layers import Dense, Dropout, BatchNormalization
+from tensorflow.keras.regularizers import l2
+
 
 warnings.filterwarnings("ignore")
+
+
 
 # Set Streamlit page config
 st.set_page_config(page_title="Mental Health Depression Prediction", layout="wide")
@@ -26,12 +37,12 @@ def img_to_base64(image_path):
         return None
 
 # Background image setup
-image_path = "D:/Projects/Mini_Projects/Mental_Health_Survey/Image/Neural_Networks.jpg"
+image_path = r"D:/Projects/Mini_Projects/Mental_Health_Survey/Image/Neural_Networks.jpg"
 img_base64 = img_to_base64(image_path)
 if img_base64:
     st.markdown(f"""
         <style>
-        .stApp {{
+        .stApp {{ 
             background-image: linear-gradient(rgba(0, 0, 0, 0.7), rgba(0, 0, 0, 0.7)),
             url('data:image/jpeg;base64,{img_base64}');
             background-size: cover;
@@ -82,49 +93,289 @@ class MentalHealthPreprocessor:
         return data[self.numerical_features + [col for col in self.categorical_features if col in self.encoders]]
 
 @st.cache_resource
-def load_pickle(path, default=None):
+def load_pickle(path):
     try:
         with open(path, "rb") as f:
             return pickle.load(f)
     except Exception as e:
-        st.error(f"Error loading file: {str(e)}")
-        return default
+        st.error(f"Error loading pickle file: {str(e)}")
+        return pd.DataFrame()
 
 @st.cache_resource
 def load_model():
-    return tf.keras.models.load_model("D:/Projects/Mini_Projects/Mental_Health_Survey/Model/neural_network.keras")
+    try:
+        return tf.keras.models.load_model(r"D:\Projects\Mini_Projects\Mental_Health_Survey\Model\neural_network.keras")
+    except Exception as e:
+        st.error(f"Error loading model: {str(e)}")
+        return None
 
 @st.cache_resource
 def load_cleaning():
-    return load_pickle("D:/Projects/Mini_Projects/Mental_Health_Survey/Model/cleaning.pkl", pd.DataFrame())
+    return load_pickle(r"D:\Projects\Mini_Projects\Mental_Health_Survey\Model\cleaning.pkl")
 
-def predict_depression(input_data, model, preprocessor):
+def balance_data(data, target_col, stratify_col=None):
+    if target_col not in data.columns:
+        return data
+    X = data.drop(columns=[target_col])
+    y = data[target_col]
+    smote = SMOTE(random_state=42)
+    if stratify_col and stratify_col in data.columns:
+        group_counts = data.groupby([stratify_col, target_col]).size().unstack(fill_value=0)
+        st.write("Data distribution by", stratify_col, "and", target_col, ":\n", group_counts)
+        X_res, y_res = smote.fit_resample(X, y)
+    else:
+        X_res, y_res = smote.fit_resample(X, y)
+    return pd.concat([pd.DataFrame(X_res, columns=X.columns), pd.Series(y_res, name=target_col)], axis=1)
+
+def preprocess_input_data(input_data, preprocessor, role):
+    input_data = input_data.copy()
+    # Add Working Professional or Student
+    input_data["Working Professional or Student"] = role
+    # Compute engineered features
+    city_map = {"Mumbai": 1, "Delhi": 2, "Chennai": 3, "Unknown": 0}
+    if "Age" in input_data and "City" in input_data:
+        input_data["Age_City"] = input_data["Age"] * city_map.get(input_data["City"], 0)
+        input_data["City_Financial_Stress"] = input_data.get("Financial Stress", 0) * city_map.get(input_data["City"], 0)
+    else:
+        input_data["Age_City"] = 0
+        input_data["City_Financial_Stress"] = 0
+    # Handle student-specific features
+    student_features = ["Academic Pressure", "Degree"]
+    if role == "Professional":
+        for feature in student_features:
+            input_data[feature] = 0
+    expected_features = preprocessor.numerical_features + [col for col in preprocessor.categorical_features if col in preprocessor.encoders]
+    for feature in expected_features:
+        if feature not in input_data:
+            input_data[feature] = 0
+    return input_data
+
+def predict_depression(input_data, model, preprocessor, role):
     try:
+        input_data = preprocess_input_data(input_data, preprocessor, role)
         processed = preprocessor.transform(pd.DataFrame([input_data]))
         processed = np.pad(processed, ((0, 0), (0, max(0, 13 - processed.shape[1]))), mode='constant')
         processed = processed[:, :13]
-        output = model.predict(processed)
+        output = model.predict(processed, verbose=0)
         label = "Depression Detected" if output[0] > 0.5 else "No Depression"
         return label, output[0][0]
     except Exception as e:
-        st.error(f"Prediction error: {str(e)}")
+        st.error(f"Prediction error: {str(e)}.")
         return "Error", 0.0
 
-# Sidebar navigation
+def retrain_model(data, model_path, cleaning_path):
+    try:
+        preprocessor = MentalHealthPreprocessor()
+        processed = preprocessor.fit(data.copy())
+        model = Sequential([
+            Dense(64, activation='relu', input_shape=(13,), kernel_regularizer=l2(0.01)),
+            BatchNormalization(),
+            Dropout(0.3),
+            Dense(32, activation='relu', kernel_regularizer=l2(0.01)),
+            BatchNormalization(),
+            Dropout(0.3),
+            Dense(1, activation='sigmoid')
+        ])
+        model.compile(optimizer='adam', loss='binary_crossentropy', metrics=['accuracy'])
+        model.fit(processed.drop(columns=["Prediction"]), processed["Prediction"], 
+                 epochs=100, batch_size=32, validation_split=0.2, verbose=0)
+        model.save(model_path)
+        with open(cleaning_path, "wb") as f:
+            pickle.dump(data, f)
+        st.success("Model retrained and saved successfully.")
+    except Exception as e:
+        st.error(f"Retraining failed: {str(e)}")
+
+def format_labels(labels, max_length=None):
+    num_labels = len(labels)
+    if max_length is None:
+        max_length = 15 if num_labels <= 5 else 10 if num_labels <= 10 else 7
+    formatted = [str(label).strip()[:max_length] + ("…" if len(str(label).strip()) > max_length else "") for label in labels]
+    return formatted
+    
+    ### Create the sidebar navigation and footer 
+    
+    ### Analysis and visualization with Separate Pages with the Help of Navigator and Footer
+
+# Sidebar navigation and footer
+
 st.sidebar.header("Navigation")
-page = st.sidebar.radio("Select Page", ["Home", "Upload Data", "Manual Entry", "Visualizations", "Bias Evaluation"])
+page = st.sidebar.radio("Select Page", ["Home", "Upload Data", "Manual Entry", "Visualizations", "Bias Evaluation", "Help"])
+st.sidebar.markdown("---")
+st.sidebar.markdown("""
+    ### How to Use
+    1. Upload survey data (CSV) or use manual input.
+    2. Click 'Predict' for depression likelihood.
+    3. View confidence scores and insights.
+    4. Explore visualizations in the Insights tab.
+    5. Assess fairness in Bias Evaluation.
+
+    ### About the Model
+    Deep Neural Network (TensorFlow/Keras) with:
+    - SMOTE for class balance
+    - L2 regularization, Batch Normalization, Dropout
+    - Metrics: Accuracy, Precision, Recall, F1, ROC-AUC
+
+    🔒 *Privacy*: Local processing, no data stored.  
+    🛠 *Status*: Beta, actively improved.  
+    ❤ *Mental Health Matters*: Seek professional help if needed.
+""")
+
+# Initialize session state
 
 if "predicted_data" not in st.session_state:
     st.session_state.predicted_data = pd.DataFrame()
+    
+    ### Home Page
 
 if page == "Home":
-    st.title("Mental Health Depression Prediction Application")
-    st.subheader("Understanding Depression")
+    st.title("🧠 Mental Health Depression Prediction")
     st.markdown("""
-        Depression is a serious mental health disorder that affects mood, thought, and behavior.
-        This application allows prediction of depression based on user input or uploaded survey data.
-        If you or someone you know is struggling, seek help—you're not alone.
+        An AI-powered tool to predict depression risk from survey data, promoting early awareness and mental well-being.
+        Analyze factors like age, financial stress, and sleep habits with a robust neural network.
     """)
+    st.info("*Disclaimer*: This app is for research and education only, not a substitute for professional diagnosis.")
+
+    tab1, tab2, tab3, tab4 = st.tabs(["Overview", "Guidelines", "Use Cases", "Standards"])
+    
+    with tab1:
+        st.header("📋 Overview")
+        st.markdown("""
+            This application leverages a deep neural network to predict depression risk based on survey data, 
+            supporting both batch CSV uploads and manual input. Key features include:
+            - *Prediction*: Batch or individual depression risk assessment.
+            - *Visualizations*: Insights into correlations, age, and financial stress distributions.
+            - *Bias Evaluation*: Fairness analysis across demographics.
+            - *Robustness*: SMOTE, feature engineering, and regularization for reliable predictions.
+            
+            *Goal*: Empower researchers, educators, and communities with data-driven mental health insights.
+        """)
+
+    with tab2:
+        st.header("🔧 Guidelines for New Users")
+        st.markdown("""
+            ### Accessing the Project
+            - *Clone Repository* (if hosted, e.g., GitHub):
+              bash
+              git clone https://github.com/your-repo/mental-health-survey.git
+              cd mental-health-survey
+              
+            - *Download*: Get the project zip or copy files to:
+              
+              D:\\Projects\\Mini_Projects\\Mental_Health_Survey\\
+              
+            - *Verify Files*:
+              - Model\\cleaning.pkl: Training data.
+              - Model\\neural_network.keras: Trained model.
+              - Image\\Neural_Networks.jpg: Background image.
+
+            ### Setting Up
+            - *Install Python*: Use Python 3.8+.
+            - *Create Virtual Environment*:
+              bash
+              cd D:\\Projects\\Mini_Projects\\Mental_Health_Survey
+              python -m venv venv
+              venv\\Scripts\\activate
+              
+            - *Install Dependencies*:
+              bash
+              pip install -r requirements.txt
+              
+              requirements.txt:
+              
+              numpy==1.26.4
+              pandas==2.2.2
+              seaborn==0.13.2
+              streamlit==1.39.0
+              tensorflow==2.17.0
+              matplotlib==3.9.2
+              scikit-learn==1.5.2
+              imblearn==0.12.3
+              
+            - *Run the App*:
+              bash
+              streamlit run Streamlit.py
+              
+              Access at http://localhost:8501.
+
+            ### Preparing Data
+            - *CSV Format*: Match cleaning.pkl columns, e.g.:
+              - Core: Gender, Age, City, Sleep Duration, Dietary Habits, Have you ever had suicidal thoughts ?, Work/Study Hours, Financial Stress, Family History of Mental Illness, Working Professional or Student.
+              - Professional: Profession, Work Pressure, Job Satisfaction.
+              - Student: Academic Pressure, CGPA, Study Satisfaction, Degree.
+            - *Sample CSV*:
+              csv
+              Gender,Age,City,Sleep Duration,Dietary Habits,Have you ever had suicidal thoughts ?,Work/Study Hours,Financial Stress,Family History of Mental Illness,Working Professional or Student,Profession,Work Pressure,Job Satisfaction
+              Male,30,Mumbai,6-8 hours,Healthy,No,8,2,No,Professional,Software Engineer,5,7
+              Female,20,Delhi,Less than 5 hours,Unhealthy,Yes,10,4,Yes,Student,,,,
+              
+            - *Validation*:
+              - Numerical: Non-negative (e.g., Age ≥ 0, Financial Stress 0–5).
+              - Categorical: Match encoded values (e.g., Gender: Male/Female, City: Mumbai/Delhi/Chennai).
+              - Use Unknown for new categories.
+            - *Check Columns*:
+              python
+              cleaned = pd.read_pickle("Model/cleaning.pkl")
+              print(cleaned.columns.tolist())
+              
+            - *Handle Missing*: The app fills missing features with defaults.
+
+            ### Using the App
+            - *Upload Data*: Batch predictions via CSV.
+            - *Manual Entry*: Single predictions with professional/student roles.
+            - *Visualizations*: Analyze correlations, distributions.
+            - *Bias Evaluation*: Check fairness and performance.
+            - *Download*: Save results as depression_predictions.csv.
+
+            ### Contributing
+            - *Report Issues*: Submit bugs via GitHub Issues.
+            - *Add Features*: Propose visualizations, metrics, or preprocessing.
+            - *Pull Requests*: Fork, modify, submit PRs with clear descriptions.
+            - *Guidelines*:
+              - Follow PEP 8.
+              - Test changes locally.
+              - Document in “Help” page.
+
+            ### Best Practices
+            - Include Working Professional or Student in inputs.
+            - Use realistic data for accurate predictions.
+            - Monitor debug logs for data issues.
+            - Retrain model with new data (see “Help”).
+        """)
+
+    with tab3:
+        st.header("🚀 Use Cases")
+        st.markdown("""
+            - *Research*: Study mental health trends across age, gender, or cities.
+            - *Healthcare Support*: Identify at-risk individuals for clinical follow-up.
+            - *Education*: Teach AI and mental health applications in classrooms.
+            - *Community Health*: Support NGOs with targeted outreach programs.
+            - *Personal Awareness*: Explore how lifestyle impacts mental health risk.
+        """)
+
+    with tab4:
+        st.header("🏅 Industry Standards")
+        st.markdown("""
+            - *🔒 Data Privacy*:
+              - Local processing; no data storage or sharing.
+              - Aligns with GDPR, HIPAA principles.
+            - *🤝 Ethics*:
+              - Transparent predictions with confidence scores.
+              - Non-diagnostic tool; professional consultation advised.
+            - *🛠 AI Standards*:
+              - SMOTE, L2 regularization, dropout for robustness.
+              - Metrics: ROC-AUC, precision, recall, F1-score.
+              - Feature engineering (e.g., Age_City) for accuracy.
+            - *📈 Quality*:
+              - Cross-validation for unseen data performance.
+              - Regular retraining for updated datasets.
+        """)
+        st.warning("*Reminder*: Seek professional help for mental health concerns.")
+        
+        
+        # Add a footer
+        
+        ### Uplaod Data Page
 
 elif page == "Upload Data":
     st.title("Upload Survey CSV")
@@ -153,6 +404,9 @@ elif page == "Upload Data":
 
             csv = result.to_csv(index=False).encode('utf-8')
             st.download_button("Download Results", data=csv, file_name="depression_predictions.csv")
+            st.success("Predictions completed successfully!")
+            
+            ### Manual Entry Page
 
 elif page == "Manual Entry":
     st.title("Manual Survey Input")
@@ -233,7 +487,7 @@ elif page == "Manual Entry":
 elif page == "Visualizations":
     st.header("Data Insights & Visualizations")
     if st.session_state.predicted_data.empty:
-        st.warning("No predicted data available. Please run predictions in the Upload Data section.")
+        st.warning("No predicted data available. Run predictions in Upload Data.")
         st.stop()
 
     st.write("#### Predicted Data Overview")
@@ -245,58 +499,55 @@ elif page == "Visualizations":
         st.write("Numeric columns:", numeric_data.columns.tolist())
         fig, ax = plt.subplots(figsize=(12, 8))
         sns.heatmap(numeric_data.corr(), annot=True, cmap="coolwarm", ax=ax, annot_kws={"size": 10}, fmt=".2f")
-        plt.title("Correlation Heatmap of Numeric Features", fontsize=8)
-        plt.xticks(rotation=45, ha='right', fontsize=8)
-        plt.yticks(fontsize=8)
+        plt.title("Correlation Heatmap of Numeric Features", fontsize=12)
+        plt.xticks(rotation=45, ha='right', fontsize=12)
+        plt.yticks(fontsize=12)
         plt.tight_layout(pad=3.0)
         st.pyplot(fig)
 
-    st.write("#### Depression Prediction Distribution")
-    fig2, ax2 = plt.subplots(figsize=(12, 8))
-    sns.countplot(x="Prediction", data=st.session_state.predicted_data, ax=ax2)
-    ax2.set_title("Distribution of Depression Predictions", fontsize=8)
-    ax2.set_xlabel("Prediction", fontsize=8)
-    ax2.set_ylabel("Count", fontsize=8)
-    plt.xticks(fontsize=8)
-    plt.tight_layout(pad=3.0)
-    st.pyplot(fig2)
+        st.write("#### Depression Prediction Distribution")
+        fig2, ax2 = plt.subplots(figsize=(12, 8))
+        sns.countplot(x="Prediction", data=st.session_state.predicted_data, ax=ax2)
+        ax2.set_title("Distribution of Depression Predictions", fontsize=12)
+        ax2.set_xlabel("Prediction", fontsize=12)
+        ax2.set_ylabel("Count", fontsize=12)
+        plt.xticks(fontsize=12)
+        plt.tight_layout(pad=3.0)
+        st.pyplot(fig2)
 
-    # Age vs. Depression Prediction Boxplot
     if "Age" in st.session_state.predicted_data.columns and "Prediction" in st.session_state.predicted_data.columns:
         st.write("#### Age Distribution by Depression Prediction")
         data = st.session_state.predicted_data.copy()
         fig3, ax3 = plt.subplots(figsize=(12, 8))
         sns.boxplot(x="Prediction", y="Age", data=data, ax=ax3)
-        ax3.set_title("Age Distribution by Depression Prediction", fontsize=8)
-        ax3.set_xlabel("Prediction (0: No Depression, 1: Depression Detected)", fontsize=8)
-        ax3.set_ylabel("Age", fontsize=8)
-        ax3.set_xticklabels(["No Depression", "Depression Detected"], fontsize=8)
+        ax3.set_title("Age Distribution by Depression Prediction", fontsize=12)
+        ax3.set_xlabel("Prediction (0: No Depression, 1: Depression Detected)", fontsize=12)
+        ax3.set_ylabel("Age", fontsize=12)
+        ax3.set_xticklabels(["No Depression", "Depression Detected"], fontsize=12)
         plt.tight_layout(pad=3.0)
         st.pyplot(fig3)
 
-    # Financial Stress vs. Prediction Violin Plot
     if "Financial Stress" in st.session_state.predicted_data.columns and "Prediction" in st.session_state.predicted_data.columns:
         st.write("#### Financial Stress Distribution by Depression Prediction")
         data = st.session_state.predicted_data.copy()
         fig4, ax4 = plt.subplots(figsize=(12, 8))
         sns.violinplot(x="Prediction", y="Financial Stress", data=data, ax=ax4)
-        ax4.set_title("Financial Stress Distribution by Depression Prediction", fontsize=8)
-        ax4.set_xlabel("Prediction (0: No Depression, 1: Depression Detected)", fontsize=8)
-        ax4.set_ylabel("Financial Stress", fontsize=8)
-        ax4.set_xticklabels(["No Depression", "Depression Detected"], fontsize=8)
+        ax4.set_title("Financial Stress Distribution by Depression Prediction", fontsize=12)
+        ax4.set_xlabel("Prediction (0: No Depression, 1: Depression Detected)", fontsize=12)
+        ax4.set_ylabel("Financial Stress", fontsize=12)
+        ax4.set_xticklabels(["No Depression", "Depression Detected"], fontsize=12)
         plt.tight_layout(pad=3.0)
         st.pyplot(fig4)
 
 elif page == "Bias Evaluation":
     st.header("Bias Evaluation for Prediction Distribution")
     if st.session_state.predicted_data.empty:
-        st.warning("No predicted data available. Please run predictions in the Upload Data section.")
+        st.warning("No predicted data available. Run predictions in Upload Data.")
         st.stop()
 
     data = st.session_state.predicted_data.copy()
     data["City"] = data["City"].replace({np.nan: "Unknown", "Mumbay": "Mumbai"})
 
-    # Model performance metrics
     if "Prediction" in data.columns and "Confidence" in data.columns:
         st.write("#### Model Performance Metrics")
         y_true = data["Prediction"]
@@ -304,26 +555,81 @@ elif page == "Bias Evaluation":
         precision = precision_score(y_true, y_pred, zero_division=0)
         recall = recall_score(y_true, y_pred, zero_division=0)
         f1 = f1_score(y_true, y_pred, zero_division=0)
-        st.write(f"Precision: {precision:.2f}, Recall: {recall:.2f}, F1-Score: {f1:.2f}")
+        roc_auc = roc_auc_score(y_true, data["Confidence"])
+        report = classification_report(y_pred, y_true, output_dict=True, zero_division=0)
+        
+        st.write(f"Precision: {precision:.2f}, Recall: {recall:.2f}, F1-Score: {f1:.2f}, ROC-AUC: {roc_auc:.2f}")
+        st.write("### Classification Report")
+        st.dataframe(pd.DataFrame(report).T)
 
         cm = confusion_matrix(y_true, y_pred)
         fig_cm, ax_cm = plt.subplots(figsize=(8, 6))
         sns.heatmap(cm, annot=True, fmt="d", cmap="Blues", ax=ax_cm)
-        ax_cm.set_title("Confusion Matrix", fontsize=8)
-        ax_cm.set_xlabel("Predicted", fontsize=8)
-        ax_cm.set_ylabel("True", fontsize=8)
+        ax_cm.set_title("Confusion Matrix", fontsize=12)
+        ax_cm.set_xlabel("Predicted", fontsize=12)
+        ax_cm.set_ylabel("True", fontsize=12)
         plt.tight_layout(pad=3.0)
         st.pyplot(fig_cm)
+
+        st.write("#### ROC Curve")
+        fpr, tpr, _ = roc_curve(y_true, data["Confidence"])
+        fig_roc, ax_roc = plt.subplots(figsize=(8, 6))
+        ax_roc.plot(fpr, tpr, label=f"ROC Curve (AUC = {roc_auc:.2f})")
+        ax_roc.plot([0, 1], [0, 1], linestyle='--', color='gray')
+        ax_roc.set_title("Receiver Operating Characteristic (ROC) Curve", fontsize=12)
+        ax_roc.set_xlabel("False Positive Rate", fontsize=12)
+        ax_roc.set_ylabel("True Positive Rate", fontsize=12)
+        ax_roc.legend(fontsize=12)
+        plt.tight_layout(pad=3.0)
+        st.pyplot(fig_roc)
+
+        st.write("#### Prediction Probability Distribution")
+        fig_prob, ax_prob = plt.subplots(figsize=(12, 8))
+        sns.histplot(data=data, x="Confidence", hue="Prediction", bins=20, ax=ax_prob)
+        ax_prob.set_title("Distribution of Prediction Probabilities", fontsize=12)
+        ax_prob.set_xlabel("Confidence Score", fontsize=12)
+        ax_prob.set_ylabel("Count", fontsize=12)
+        plt.tight_layout(pad=3.0)
+        st.pyplot(fig_prob)
+
+        # Cross-validation estimate
+        preprocessor = MentalHealthPreprocessor()
+        processed_data = preprocessor.fit(data.copy())
+        rf = RandomForestClassifier(random_state=42)
+        cv_scores = cross_val_score(rf, processed_data.drop(columns=["Prediction", "Confidence"]), y_true, cv=5, scoring='roc_auc')
+        st.write(f"Cross-Validation ROC-AUC (5-fold): Mean = {cv_scores.mean():.2f}, Std = {cv_scores.std():.2f}")
+
+        # Feature importance
+        rf.fit(processed_data.drop(columns=["Prediction", "Confidence"]), y_true)
+        importance = pd.DataFrame({
+            "Feature": processed_data.drop(columns=["Prediction", "Confidence"]).columns,
+            "Importance": rf.feature_importances_
+        }).sort_values("Importance", ascending=False)
+        st.write("#### Feature Importance")
+        st.dataframe(importance)
+
+        # Fairness analysis
+        if "Gender" in data.columns:
+            st.write("#### Fairness Analysis: Gender")
+            parity = data.groupby("Gender")["Prediction"].mean().reset_index()
+            parity.columns = ["Gender", "Prediction Rate"]
+            recall_by_gender = data.groupby("Gender").apply(
+                lambda x: recall_score(x["Prediction"], (x["Confidence"] > 0.5).astype(int), zero_division=0)
+            ).reset_index(name="Recall")
+            st.write("*Demographic Parity* (Prediction Rate by Gender):")
+            st.dataframe(parity)
+            st.write("*Equal Opportunity* (Recall by Gender):")
+            st.dataframe(recall_by_gender)
 
     if "Age" in data.columns and "Prediction" in data.columns:
         st.write("#### Age Distribution in Predictions")
         data["Age Group"] = pd.cut(data["Age"], bins=[17, 25, 35, 45, 55, 85], labels=["18-25", "26-35", "36-45", "46-55", "56+"])
         fig, ax = plt.subplots(figsize=(12, 8))
         sns.countplot(x="Age Group", hue="Prediction", data=data, ax=ax)
-        ax.set_title("Depression Predictions by Age Group", fontsize=8)
-        ax.set_xlabel("Age Group", fontsize=8)
-        ax.set_ylabel("Count", fontsize=8)
-        plt.xticks(rotation=45, ha='right', fontsize=8)
+        ax.set_title("Depression Predictions by Age Group", fontsize=12)
+        ax.set_xlabel("Age Group", fontsize=12)
+        ax.set_ylabel("Count", fontsize=12)
+        plt.xticks(rotation=45, ha='right', fontsize=12)
         plt.tight_layout(pad=3.0)
         st.pyplot(fig)
 
@@ -331,25 +637,23 @@ elif page == "Bias Evaluation":
         age_stats.columns = ["Age Group", "Depression Prediction Rate"]
         fig2, ax2 = plt.subplots(figsize=(12, 8))
         sns.barplot(x="Age Group", y="Depression Prediction Rate", data=age_stats, ax=ax2)
-        ax2.set_title("Depression Prediction Rate by Age Group", fontsize=8)
-        ax2.set_xlabel("Age Group", fontsize=8)
-        ax2.set_ylabel("Prediction Rate", fontsize=8)
+        ax2.set_title("Depression Prediction Rate by Age Group", fontsize=12)
+        ax2.set_xlabel("Age Group", fontsize=12)
+        ax2.set_ylabel("Prediction Rate", fontsize=12)
         plt.ylim(0, 1)
-        plt.xticks(rotation=45, ha='right', fontsize=8)
+        plt.xticks(rotation=45, ha='right', fontsize=12)
         plt.tight_layout(pad=3.0)
         st.pyplot(fig2)
         st.dataframe(age_stats)
 
     if "Gender" in data.columns and "Prediction" in data.columns:
         st.write("#### Gender Distribution in Predictions")
-        st.write("Columns in data:", data.columns.tolist())
         fig3, ax3 = plt.subplots(figsize=(12, 8))
         sns.countplot(x="Gender", hue="Prediction", data=data, ax=ax3)
-        ax3.set_title("Depression Predictions by Gender", fontsize=8)
-        ax3.set_xlabel("Gender", fontsize=8)
-        ax3.set_ylabel("Count", fontsize=8)
-        ax3.set_xticklabels(data["Gender"].unique(), rotation=45, ha='right', fontsize=8)
-
+        ax3.set_title("Depression Predictions by Gender", fontsize=12)
+        ax3.set_xlabel("Gender", fontsize=12)
+        ax3.set_ylabel("Count", fontsize=12)
+        ax3.set_xticklabels(format_labels(data["Gender"].unique()), rotation=45, ha='right', fontsize=12)
         plt.tight_layout(pad=3.0)
         st.pyplot(fig3)
 
@@ -357,11 +661,10 @@ elif page == "Bias Evaluation":
         gender_stats.columns = ["Gender", "Depression Prediction Rate"]
         fig4, ax4 = plt.subplots(figsize=(12, 8))
         sns.barplot(x="Gender", y="Depression Prediction Rate", data=gender_stats, ax=ax4)
-        ax4.set_title("Depression Prediction Rate by Gender", fontsize=8)
-        ax4.set_xlabel("Gender", fontsize=8)
-        ax4.set_ylabel("Prediction Rate", fontsize=8)
-        ax3.set_xticklabels(data["Gender"].unique(), rotation=45, ha='right', fontsize=14)
-
+        ax4.set_title("Depression Prediction Rate by Gender", fontsize=12)
+        ax4.set_xlabel("Gender", fontsize=12)
+        ax4.set_ylabel("Prediction Rate", fontsize=12)
+        ax4.set_xticklabels(format_labels(gender_stats["Gender"]), rotation=45, ha='right', fontsize=12)
         plt.ylim(0, 1)
         plt.tight_layout(pad=3.0)
         st.pyplot(fig4)
@@ -373,11 +676,10 @@ elif page == "Bias Evaluation":
             num_unique = len(data[factor].unique())
             fig, ax = plt.subplots(figsize=(max(12, num_unique * 2), 8))
             sns.countplot(x=factor, hue="Prediction", data=data, ax=ax)
-            ax.set_title(f"Depression Predictions by {factor}", fontsize=8)
-            ax.set_xlabel(factor, fontsize=8)
-            ax.set_ylabel("Count", fontsize=8)
-            ax3.set_xticklabels(data["Gender"].unique(), rotation=45, ha='right', fontsize=14)
-
+            ax.set_title(f"Depression Predictions by {factor}", fontsize=12)
+            ax.set_xlabel(factor, fontsize=12)
+            ax.set_ylabel("Count", fontsize=12)
+            ax.set_xticklabels(format_labels(data[factor].unique()), rotation=45, ha='right', fontsize=12)
             plt.subplots_adjust(bottom=0.2)
             plt.tight_layout(pad=3.0)
             st.pyplot(fig)
@@ -386,108 +688,130 @@ elif page == "Bias Evaluation":
             factor_stats.columns = [factor, "Depression Prediction Rate"]
             fig_factor, ax_factor = plt.subplots(figsize=(12, 8))
             sns.barplot(x=factor, y="Depression Prediction Rate", data=factor_stats, ax=ax_factor)
-            ax_factor.set_title(f"Depression Prediction Rate by {factor}", fontsize=8)
-            ax_factor.set_xlabel(factor, fontsize=8)
-            ax_factor.set_ylabel("Prediction Rate", fontsize=8)
-            ax3.set_xticklabels(data["Gender"].unique(), rotation=45, ha='right', fontsize=8)
-
+            ax_factor.set_title(f"Depression Prediction Rate by {factor}", fontsize=12)
+            ax_factor.set_xlabel(factor, fontsize=12)
+            ax_factor.set_ylabel("Prediction Rate", fontsize=12)
+            ax_factor.set_xticklabels(format_labels(factor_stats[factor]), rotation=45, ha='right', fontsize=12)
             plt.ylim(0, 1)
             plt.tight_layout(pad=3.0)
             st.pyplot(fig_factor)
             st.dataframe(factor_stats)
 
 elif page == "Help":
-    st.header("Help & Guidelines")
+    st.header("🧠 Help & Guidelines")
     st.markdown("""
-        ## Mental Health Depression Prediction Application: User Guide
-        
-        🧠 About This App
+        ## Mental Health Depression Prediction: User Guide
 
-        This application predicts depression based on survey data, using a neural network model. It supports batch predictions via CSV uploads and individual predictions via manual input, with visualizations and bias evaluations to interpret results.
-        The app is designed to be user-friendly, with clear navigation and informative outputs. Below are the key features and instructions for using the app effectively.
-        This Mental Health Prediction App uses AI to analyze survey responses and predict the likelihood of depression.
-        It aims to promote early awareness and support mental well-being using technology.
-        
-        📋 How to Use
-        
-        Upload Data- You can upload a CSV file containing survey responses, or manually enter data in the form.
-        
-        Run Prediction- Click the "Predict" button to get results, including depression risk level and confidence score.
-        
-        View Insights- Check the visualizations for correlation, feature importance, and distribution of predictions.
-        
-        Evaluation- Metrics include Accuracy, Precision, Recall, F1-score, and more.
-        
-        🔐 Data Privacy
-        
-        Your privacy is our priority. The app does not store or share any personal data. All processing is done locally on your device.
-        Your data is not stored or shared. The app processes data locally and does not retain any personal information.
-        All processing is done **locally** – no data is uploaded or stored externally.
-        This is a research prototype and not a substitute for professional mental health diagnosis.
-        The app is designed for educational purposes and should not be used as a diagnostic tool.
-        The app is not a substitute for professional medical advice, diagnosis, or treatment.
-        
-        
-        💡 Tips for Best Results
-        
-        - Ensure your CSV file has the correct format and includes all necessary columns.
-        - Use the manual entry form for quick predictions without uploading files.
-        - Check the visualizations to understand the model's predictions and biases.
-        - For best results, ensure your data is clean and well-structured.
-        - Use the manual entry form for quick predictions without uploading files.
-        - Ensure the input data matches the required format
-        - Use realistic survey data – don't enter fake or incomplete info
-        - Always interpret predictions with caution and context
-        
-        
-        📌 Note: This app is designed to raise awareness, not replace clinical judgment. Please consult professionals for medical advice.
+        This AI-powered app predicts depression risk from survey data, offering batch predictions, manual input, visualizations, and fairness analysis.
 
-        
-        ### 1. Overview
-        The app is designed to:
-        - Predict depression using features like age, gender, city, sleep duration, and more.
-        - Handle both professional and student roles, with student-specific features (e.g., Academic Pressure, CGPA) if available in the training data.
-        - Provide insights through visualizations and bias evaluations.
-        - Ensure robust predictions with preprocessing (StandardScaler, SMOTE) and feature engineering (e.g., Age_City interaction).
+        ### 📋 Overview
+        - *Prediction*: Uses a neural network to assess depression risk.
+        - *Features*: Age, gender, city, financial stress, sleep duration, etc.
+        - *Roles*: Supports professional and student inputs (e.g., Academic Pressure).
+        - *Insights*: Visualizations and bias evaluations for interpretability.
+        - *Robustness*: SMOTE, L2 regularization, feature engineering (e.g., Age_City).
 
-        ### 2. Prerequisites
-        Before running the app, ensure the following:
-        - **System Requirements**:
-          - Python 3.8 or higher.
-          - A Windows/Linux/macOS system with at least 4GB RAM.
-        - **Dependencies**:
-          Install required packages using the requirements.txt file:
+        ### 🔧 Prerequisites
+        - *System*: Python 3.8+, 4GB RAM, Windows/Linux/macOS.
+        - *Dependencies*:
+          bash
+          pip install -r requirements.txt
           
-          """)
+          requirements.txt:
+          
+          numpy==1.26.4
+          pandas==2.2.2
+          seaborn==0.13.2
+          streamlit==1.39.0
+          tensorflow==2.17.0
+          matplotlib==3.9.2
+          scikit-learn==1.5.2
+          imblearn==0.12.3
+          
+        - *Files*:
+          - Model\\cleaning.pkl
+          - Model\\neural_network.keras
+          - Image\\Neural_Networks.jpg
+        - *Structure*:
+          
+          D:\\Projects\\Mini_Projects\\Mental_Health_Survey\\
+          ├── Image\\
+          │   └── Neural_Networks.jpg
+          ├── Model\\
+          │   ├── cleaning.pkl
+          │   └── neural_network.keras
+          └── Streamlit.py
+          
+
+        ### 🚀 Running the App
+        bash
+        cd D:\\Projects\\Mini_Projects\\Mental_Health_Survey
+        venv\\Scripts\\activate
+        streamlit run Streamlit.py
         
-    
-    # =========================== Help & Footer =============================
-with st.sidebar:
-    st.markdown("---")
-    st.markdown("""
-    ### How to use:
-    1. Upload your mental health survey data in CSV format, or use manual form input
-    2. Click 'Predict' to get the likelihood of depression
-    3. View prediction confidence score and decision insights
-    4. Use the Insights tab to explore visualizations (e.g., correlation heatmap, distributions)
-    5. Go to Bias Evaluation to assess model fairness and accuracy if ground truth is provided
-    
-    ### About the model:
-    This application uses a trained Deep Neural Network (DNN) built with TensorFlow/Keras, optimized using:
-    - RandomOverSampler for class balance
-    - RandomForestClassifier for top feature selection
-    - Batch Normalization, Dropout, Early Stopping for robust learning
+        Access: http://localhost:8501.
 
-    Evaluation metrics include:
-    - Accuracy, Precision, Recall, F1-score
-    - Confusion matrix and Bias dashboard
-    - Optional BLEU/ROUGE/Embedding metrics (coming soon)
+        ### 📊 Navigation
+        See *Home* for detailed guidelines, use cases, and standards.
 
-    This project is part of a health-tech AI initiative designed to support early screening for depression risk.\n
-    Your privacy is respected – no data is stored.\n
-    App is currently in beta. Continuous improvements underway!\n
-    Stay healthy. Stay aware. Mental health matters ❤️
-    
-    """)
+        - *Home*: App overview and user instructions.
+        - *Upload Data*: Batch predictions via CSV.
+        - *Manual Entry*: Single predictions.
+        - *Visualizations*: Correlation, age, financial stress insights.
+        - *Bias Evaluation*: Fairness and performance metrics.
+        - *Help*: This guide.
 
+        ### 🔍 Troubleshooting
+        - *Missing Features*:
+          - Check cleaning.pkl:
+            python
+            cleaned = pd.read_pickle("Model/cleaning.pkl")
+            print(cleaned.columns.tolist())
+            
+          - Ensure CSV includes Working Professional or Student and matches cleaning.pkl.
+          - For manual entry, select correct role (Professional/Student).
+        - *File Not Found*:
+          - Verify paths for cleaning.pkl, neural_network.keras, Neural_Networks.jpg.
+        - *Prediction Errors*:
+          - Review debug logs (e.g., "Processed rows").
+          - Retrain model (below).
+        - *Visualization Issues*:
+          - Increase figure size:
+            python
+            fig, ax = plt.subplots(figsize=(max(12, num_unique * 3), 8))
+            
 
+        ### 🛠 Retraining the Model
+        python
+        from tensorflow.keras.models import Sequential
+        from tensorflow.keras.layers import Dense, Dropout, BatchNormalization
+        from tensorflow.keras.regularizers import l2
+        model = Sequential([
+            Dense(64, activation='relu', input_shape=(13,), kernel_regularizer=l2(0.01)),
+            BatchNormalization(),
+            Dropout(0.3),
+            Dense(32, activation='relu', kernel_regularizer=l2(0.01)),
+            BatchNormalization(),
+            Dropout(0.3),
+            Dense(1, activation='sigmoid')
+        ])
+        model.compile(optimizer='adam', loss='binary_crossentropy', metrics=['accuracy'])
+        # Train: model.fit(X_train, y_train, epochs=100, batch_size=32, validation_split=0.2)
+        model.save("Model/neural_network.keras")
+        
+        - Ensure X_train has 13 features.
+        - Update cleaning.pkl with new data.
+
+        ### 💡 Tips
+        - Include all expected features in CSV (see Home > Guidelines).
+        - Use realistic data for predictions.
+        - Check fairness metrics for biases.
+        - Retrain periodically with new data.
+
+        ### 📞 Support
+        - Streamlit: https://docs.streamlit.io
+        - TensorFlow: https://www.tensorflow.org/guide
+        - Issues: Submit via GitHub (if applicable).
+
+        ❤ *Mental Health Matters*: Consult professionals for medical advice.
+    """)
