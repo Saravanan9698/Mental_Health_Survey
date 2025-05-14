@@ -1,0 +1,15 @@
+numpy==1.26.4  # Numerical computing with support for large multi-dimensional arrays and matrices
+pandas==2.2.2  # Data manipulation and analysis using DataFrames and Series
+seaborn==0.13.2  # Statistical data visualization built on top of matplotlib
+streamlit==1.39.0  # Web app framework for creating interactive data science dashboards
+tensorflow==2.17.0  # Deep learning and machine learning framework by Google
+matplotlib==3.9.2  # 2D plotting library for creating static, animated, and interactive visualizations
+scikit-learn==1.5.2  # Machine learning library for classical ML algorithms and preprocessing
+scipy==1.11.3  # Scientific computing library built on NumPy with modules for optimization, integration, etc.
+statsmodels==0.14.0  # Statistical modeling and econometrics (regression, time series analysis, etc.)
+plotly==5.17.1  # Interactive graphing library for web-based plots
+plotly_express==0.4.1  # Simple interface to Plotly for quick plotting (now part of `plotly.express`)
+plotly-resampler==0.10.0  # Efficient resampling of large time-series data for interactive Plotly graphs
+plotly-dash==2.10.1  # Web app framework for building dashboards with Plotly visualizations
+plotly-dash-bootstrap-components==1.3.2  # Bootstrap-themed components for building Dash applications
+imblearn==0.12.3  # Tools for handling imbalanced datasets, like SMOTE and under-sampling
