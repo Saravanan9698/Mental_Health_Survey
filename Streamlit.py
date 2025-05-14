@@ -442,7 +442,7 @@ elif page == "Manual Entry":
         cleaned = load_cleaning()
         preprocessor = MentalHealthPreprocessor()
         preprocessor.fit(cleaned.copy())
-        pred, conf = predict_depression(input_data, model, preprocessor)
+        pred, conf = predict_depression(input_data, model, preprocessor, role)
         st.success(f"Prediction: {pred}")
         st.info(f"Confidence Score: {conf:.2f}")
 
