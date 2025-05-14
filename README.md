@@ -14,28 +14,28 @@
 📦 Mental Health Prediction  
 ┃   
 ┣ 📂 **Model**   
-┃  ┣ 📜 `cleaning.pkl` -> *Data cleaning logic* 
+┃  ┣ 📜 `neural_network.keras` -> *Trained TensorFlow Model*  
 ┃  ┣ 📜 `preprocessor.pkl` -> *Preprocessing pipeline*  
-┃  ┣ 📜 `neural_network.keras` -> *Trained TensorFlow Model* 
+┃  ┣ 📜 `cleaning.pkl` -> *Data cleaning logic*  
 ┃  
-┣ 📂 **Mental-Health-Survey-Dataset**   
-┃  ┣ 📜 `sample_submission.csv` -> *Sample Survey dataset*
-┃  ┣ 📜 `test.csv` -> *Test dataset*
-┃  ┣ 📜 `train.csv` -> *Train dataset*
+┣ 📂 **Data**   
+┃  ┣ 📜 `train.csv` -> *Train dataset*  
+┃  ┣ 📜 `test.csv` -> *Test dataset*  
+┃  ┣ 📜 `sample_submission.csv` -> *Sample Survey dataset*  
 ┃   
-┣ 📂 **Research_Data**   
+┣ 📂 **Dataset**   
 ┃  ┣ 📜 `cleaned_data.csv` -> *Cleaned Dataset*  
-┃  ┣ 📜 `preprocessed_data.csv` -> *Preprocessed Dataset*    
+┃  ┣ 📜 `preprocessor_data.csv` -> *Preprocessed Dataset*    
 ┃  
 ┣ 📂 **Scripts**   
-┃  ┣ 📜 `Data_Cleaning.ipynb` -> *Helps in Finding and Understanding Dataset's Characteristic*  
-┃  ┣ 📜 `Data_Preprocessing.ipynb` -> *Prepares Data for Model Building and Prediction*   
+┃  ┣ 📜 `data_understanding.ipynb` -> *Helps in Finding and Understanding Dataset's Characteristic*  
+┃  ┣ 📜 `data_processing.ipynb` -> *Prepares Data for Model Building and Prediction*   
 ┃  ┣ 📜 `EDA.ipynb` -> *Visualizes data for the understanding*  
-┃  ┣ 📜 `Model_Building.ipynb` -> *Builds Neural Networks Model and Prepares for the Prediction*  
+┃  ┣ 📜 `model_building.ipynb` -> *Builds Neural Networks Model and Prepares for the Prediction*  
 ┃  
 ┣ 📜 Streamlit.py -> *Streamlit Application*  
 ┣ 📜 requirements.txt -> *Python dependencies*    
-┣ 📜 README.md -> *Documentation*
+┣ 📜 README.md -> *Documentation*  
 
 
 ## Visualizations & Insights  
