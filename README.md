@@ -1,7 +1,9 @@
-# Mental Health Prediction  
+# Mental Health Prediction
+
 #### An AI-powered web application that predicts the likelihood of depression based on survey responses.  
 
 ## Features  
+
 #####  *Upload Data* –  Upload survey data in CSV format for analysis and prediction.  
 #####  *Manual Entry* –  Manually input survey responses and get depression risk predictions.  
 #####  *Preprocessing & Cleaning* – Automatically cleans and preprocesses data.  
@@ -12,33 +14,35 @@
 📦 Mental Health Prediction  
 ┃   
 ┣ 📂 **Model**   
-┃  ┣ 📜 `neural_network.keras` -> *Trained TensorFlow Model*  
+┃  ┣ 📜 `cleaning.pkl` -> *Data cleaning logic* 
 ┃  ┣ 📜 `preprocessor.pkl` -> *Preprocessing pipeline*  
-┃  ┣ 📜 `cleaning.pkl` -> *Data cleaning logic*  
+┃  ┣ 📜 `neural_network.keras` -> *Trained TensorFlow Model* 
 ┃  
-┣ 📂 **Data**   
-┃  ┣ 📜 `train.csv` -> *Train dataset*  
-┃  ┣ 📜 `test.csv` -> *Test dataset*  
-┃  ┣ 📜 `sample_submission.csv` -> *Sample Survey dataset*  
+┣ 📂 **Mental-Health-Survey-Dataset**   
+┃  ┣ 📜 `sample_submission.csv` -> *Sample Survey dataset*
+┃  ┣ 📜 `test.csv` -> *Test dataset*
+┃  ┣ 📜 `train.csv` -> *Train dataset*
 ┃   
-┣ 📂 **Dataset**   
+┣ 📂 **Research_Data**   
 ┃  ┣ 📜 `cleaned_data.csv` -> *Cleaned Dataset*  
-┃  ┣ 📜 `preprocessor_data.csv` -> *Preprocessed Dataset*    
+┃  ┣ 📜 `preprocessed_data.csv` -> *Preprocessed Dataset*    
 ┃  
 ┣ 📂 **Scripts**   
-┃  ┣ 📜 `data_understanding.ipynb` -> *Helps in Finding and Understanding Dataset's Characteristic*  
-┃  ┣ 📜 `data_processing.ipynb` -> *Prepares Data for Model Building and Prediction*   
+┃  ┣ 📜 `Data_Cleaning.ipynb` -> *Helps in Finding and Understanding Dataset's Characteristic*  
+┃  ┣ 📜 `Data_Preprocessing.ipynb` -> *Prepares Data for Model Building and Prediction*   
 ┃  ┣ 📜 `EDA.ipynb` -> *Visualizes data for the understanding*  
-┃  ┣ 📜 `model_building.ipynb` -> *Builds Neural Networks Model and Prepares for the Prediction*  
+┃  ┣ 📜 `Model_Building.ipynb` -> *Builds Neural Networks Model and Prepares for the Prediction*  
 ┃  
 ┣ 📜 Streamlit.py -> *Streamlit Application*  
 ┣ 📜 requirements.txt -> *Python dependencies*    
-┣ 📜 README.md -> *Documentation*    
+┣ 📜 README.md -> *Documentation*
+
 
 ## Visualizations & Insights  
 #####  *Correlation Heatmaps* – Find relationships between features.  
 #####  *Depression Distribution* – See how depression cases are distributed.  
-#####  *Real-time Predictions* – Get instant results for manual data entry.  
+#####  *Real-time Predictions* – Get instant results for manual data entry.
+
 
 ## Technologies Used  
 #####  *Streamlit* – Web application framework  
